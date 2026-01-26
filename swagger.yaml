@@ -1,0 +1,547 @@
+openapi: 3.0.3
+info:
+  title: Examen TW API
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+
+tags:
+  - name: Auth
+  - name: Users
+  - name: Projects
+  - name: Tasks
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+        details:
+          type: object
+      additionalProperties: true
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          example: andrei@admin.net
+        password:
+          type: string
+          example: welcome
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT token (name may differ in implementation; adjust if needed)
+
+    User:
+      type: object
+      properties:
+        id: { type: integer, example: 1 }
+        email: { type: string, example: andrei@admin.net }
+        type:
+          type: string
+          enum: [admin, regular]
+        token:
+          type: string
+          nullable: true
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    Project:
+      type: object
+      properties:
+        id: { type: integer, example: 10 }
+        name: { type: string, example: My Project }
+        description: { type: string, nullable: true }
+        userId: { type: integer, example: 1 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    Task:
+      type: object
+      properties:
+        id: { type: integer, example: 100 }
+        title: { type: string, example: Task title }
+        description: { type: string, example: Task description }
+        status: { type: string, example: open }
+        projectId: { type: integer, example: 10 }
+        userId: { type: integer, example: 1 }
+        assignedToId: { type: integer, nullable: true, example: 2 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    Permission:
+      type: object
+      properties:
+        id: { type: integer }
+        forResource: { type: integer, example: 10 }
+        forUser: { type: integer, example: 1 }
+        type:
+          type: string
+          enum: [task, project]
+        rights:
+          type: array
+          items: { type: string }
+          example: ["read", "write"]
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    ProjectUpsertRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, example: My Project }
+        description: { type: string, nullable: true, example: Optional description }
+
+    TaskUpsertRequest:
+      type: object
+      required: [title, description]
+      properties:
+        title: { type: string, example: Task title }
+        description: { type: string, example: Task description }
+        status: { type: string, example: open }
+
+    AssignTaskRequest:
+      type: object
+      required: [assignedToId]
+      properties:
+        assignedToId: { type: integer, example: 2 }
+
+    UpdateTaskStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, example: open }
+
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoginResponse" }
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/users/{uid}/projects:
+    get:
+      tags: [Projects]
+      summary: Get all projects for user
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: uid
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Project" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    post:
+      tags: [Projects]
+      summary: Create project for user
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: uid
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProjectUpsertRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/users/{uid}/projects/{pid}:
+    get:
+      tags: [Projects]
+      summary: Get one owned project
+      security:
+        - bearerAuth: []
+      parameters:
+        - { in: path, name: uid, required: true, schema: { type: integer } }
+        - { in: path, name: pid, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    put:
+      tags: [Projects]
+      summary: Update owned project (requires write perm)
+      security:
+        - bearerAuth: []
+      parameters:
+        - { in: path, name: uid, required: true, schema: { type: integer } }
+        - { in: path, name: pid, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProjectUpsertRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      tags: [Projects]
+      summary: Delete owned project (requires write perm)
+      security:
+        - bearerAuth: []
+      parameters:
+        - { in: path, name: uid, required: true, schema: { type: integer } }
+        - { in: path, name: pid, required: true, schema: { type: integer } }
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/users/{uid}/projects/{pid}/tasks:
+    get:
+      tags: [Tasks]
+      summary: Get all tasks for project
+      security:
+        - bearerAuth: []
+      parameters:
+        - { in: path, name: uid, required: true, schema: { type: integer } }
+        - { in: path, name: pid, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Task" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    post:
+      tags: [Tasks]
+      summary: Create task for project (requires write perm on project)
+      security:
+        - bearerAuth: []
+      parameters:
+        - { in: path, name: uid, required: true, schema: { type: integer } }
+        - { in: path, name: pid, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TaskUpsertRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/users/{uid}/projects/{pid}/tasks/{tid}:
+    get:
+      tags: [Tasks]
+      summary: Get one task for project
+      security:
+        - bearerAuth: []
+      parameters:
+        - { in: path, name: uid, required: true, schema: { type: integer } }
+        - { in: path, name: pid, required: true, schema: { type: integer } }
+        - { in: path, name: tid, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    put:
+      tags: [Tasks]
+      summary: Update task (requires write perm on project)
+      security:
+        - bearerAuth: []
+      parameters:
+        - { in: path, name: uid, required: true, schema: { type: integer } }
+        - { in: path, name: pid, required: true, schema: { type: integer } }
+        - { in: path, name: tid, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TaskUpsertRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      tags: [Tasks]
+      summary: Delete task (requires write perm on project)
+      security:
+        - bearerAuth: []
+      parameters:
+        - { in: path, name: uid, required: true, schema: { type: integer } }
+        - { in: path, name: pid, required: true, schema: { type: integer } }
+        - { in: path, name: tid, required: true, schema: { type: integer } }
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/users/{uid}/projects/{pid}/tasks/{tid}/assignments:
+    post:
+      tags: [Tasks]
+      summary: Assign task to user (requires write perm on project)
+      security:
+        - bearerAuth: []
+      parameters:
+        - { in: path, name: uid, required: true, schema: { type: integer } }
+        - { in: path, name: pid, required: true, schema: { type: integer } }
+        - { in: path, name: tid, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AssignTaskRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/users/{uid}/projects/{pid}/tasks/{tid}/status:
+    put:
+      tags: [Tasks]
+      summary: Update assigned task status (assigned user only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - { in: path, name: uid, required: true, schema: { type: integer } }
+        - { in: path, name: pid, required: true, schema: { type: integer } }
+        - { in: path, name: tid, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateTaskStatusRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/users/{uid}/profile:
+    get:
+      tags: [Users]
+      summary: Get user profile
+      security:
+        - bearerAuth: []
+      parameters:
+        - { in: path, name: uid, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/users/suggestions:
+    get:
+      tags: [Users]
+      summary: Suggest user by email
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: email
+          required: true
+          schema: { type: string }
+          example: andrei@somewhere.net
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/User" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
